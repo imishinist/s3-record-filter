@@ -35,7 +35,7 @@ func (t *Time) ToTime() time.Time {
 }
 
 type FilterConfig struct {
-	RecordAfter Time  `envconfig:"RECORD_AFTER"`
+	RecordAfter Time   `envconfig:"RECORD_AFTER"`
 	QueueURL    string `envconfig:"QUEUE_URL"`
 }
 
@@ -45,7 +45,7 @@ func createSNSMessage(records events.S3Event) (string, error) {
 		return "", xerrors.Errorf("create sns message error: %w", err)
 	}
 
-	snsMessage :=new(bytes.Buffer)
+	snsMessage := new(bytes.Buffer)
 	if err := json.NewEncoder(snsMessage).Encode(events.SNSEntity{
 		Message: buf.String(),
 	}); err != nil {
