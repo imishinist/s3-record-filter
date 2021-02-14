@@ -61,8 +61,6 @@ func printJson(out io.Writer, data interface{}) {
 }
 
 func handler(ctx context.Context, event events.SQSEvent) error {
-	printJson(os.Stdout, event)
-
 	var f FilterConfig
 	if err := envconfig.Process("filter", &f); err != nil {
 		log.Fatal(err)
@@ -79,38 +77,34 @@ func handler(ctx context.Context, event events.SQSEvent) error {
 		if err := json.Unmarshal([]byte(body), &record); err != nil {
 			return fmt.Errorf("unmarshal sns entity error: %w", err)
 		}
-		printJson(os.Stdout, record)
 
 		var records events.S3Event
 		if err := json.Unmarshal([]byte(record.Message), &records); err != nil {
 			return fmt.Errorf("unmarshal s3 event error: %w", err)
 		}
-		printJson(os.Stdout, records)
 
-		fmt.Println("RecordAfter: ", f.RecordAfter)
 		if f.RecordAfter == nil {
-			fmt.Println("append all")
+			fmt.Println("`RECORD_AFTER` is nil, so append all")
 			s3Records = append(s3Records, records.Records...)
 			continue
 		}
 
 		// filter s3 record
 		for _, r := range records.Records {
-			fmt.Println("after")
 			if r.EventTime.After(f.RecordAfter.ToTime()) {
 				continue
 			}
-			fmt.Println("append one record")
 			s3Records = append(s3Records, r)
 		}
 	}
-	printJson(os.Stdout, s3Records)
+	if len(s3Records) == 0 {
+		return nil
+	}
 
 	message, err := createSNSMessage(events.S3Event{Records: s3Records})
 	if err != nil {
 		return err
 	}
-
 	if _, err := svc.SendMessage(&sqs.SendMessageInput{
 		QueueUrl:    aws.String(f.QueueURL),
 		MessageBody: aws.String(message),
