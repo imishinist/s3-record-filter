@@ -17,5 +17,4 @@ deploy:
 	aws cloudformation deploy \
 		--stack-name s3-record-filter \
 		--template-file .template.yaml \
-		--capabilities CAPABILITY_IAM \
-		--parameter-overrides BatchSize=1
+		--capabilities CAPABILITY_IAM
