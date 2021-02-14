@@ -15,11 +15,11 @@ Parameters:
 Resources:
   TestBucket:
     Type: AWS::S3::Bucket
-    Properties:
-      NotificationConfiguration:
-        TopicConfigurations:
-          - Event: "s3:ObjectCreated:*"
-            Topic: !Ref SNSTopic
+    # Properties:
+    #   NotificationConfiguration:
+    #     TopicConfigurations:
+    #       - Event: "s3:ObjectCreated:*"
+    #         Topic: !Ref SNSTopic
 
   SNSTopic:
     Type: AWS::SNS::Topic
