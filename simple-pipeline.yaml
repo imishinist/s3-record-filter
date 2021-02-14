@@ -4,22 +4,20 @@ Transform: AWS::Serverless-2016-10-31
 Parameters:
   BatchSize:
     Type: Number
-    Default: 10
+    Default: 1
   ConcurrentExecution:
     Type: Number
     Default: 2
-  BatchWindowSeconds:
-    Type: Number
-    Default: 10
 
 Resources:
   TestBucket:
     Type: AWS::S3::Bucket
-    # Properties:
-    #   NotificationConfiguration:
-    #     TopicConfigurations:
-    #       - Event: "s3:ObjectCreated:*"
-    #         Topic: !Ref SNSTopic
+    Properties:
+      NotificationConfiguration:
+        TopicConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Topic: !Ref SNSTopic
+    DependsOn: SNSTopicPolicy
 
   SNSTopic:
     Type: AWS::SNS::Topic
@@ -37,29 +35,26 @@ Resources:
             Action:
               - "sns:Publish"
             Resource: !Ref SNSTopic
-            Condition:
-              ArnEquals:
-                "aws:SourceArn": !GetAtt TestBucket.Arn
 
-  IngressQueueSNSTopicSubscription:
+  FilterQueueSNSTopicSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       TopicArn: !Ref SNSTopic
       Protocol: sqs
-      Endpoint: !GetAtt IngressQueue.Arn
+      Endpoint: !GetAtt FilterQueue.Arn
 
-  IngressQueue:
+  FilterQueue:
     Type: AWS::SQS::Queue
     Properties:
       DelaySeconds: 300
       MessageRetentionPeriod: 432000
       ReceiveMessageWaitTimeSeconds: 20
       VisibilityTimeout: 1200
-  IngressQueuePolicy:
+  FilterQueuePolicy:
     Type: "AWS::SQS::QueuePolicy"
     Properties:
       Queues:
-        - !Ref IngressQueue
+        - !Ref FilterQueue
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -68,10 +63,63 @@ Resources:
               Service: "sns.amazonaws.com"                
             Action:
               - "sqs:SendMessage"
-            Resource: !GetAtt IngressQueue.Arn
+            Resource: !GetAtt FilterQueue.Arn
             Condition:
               ArnEquals:
                 "aws:SourceArn": !Ref SNSTopic
+  FilterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: filter
+      Runtime: go1.x
+      CodeUri: build/filter
+      MemorySize: 128
+      Timeout: 30
+      ReservedConcurrentExecutions: !Ref ConcurrentExecution
+      Events:
+        Stream:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt FilterQueue.Arn
+            BatchSize: !Ref BatchSize
+            Enabled: true
+      Role: !GetAtt FilterFunctionRole.Arn
+      Environment:
+        Variables:
+          
+          QUEUE_URL: !Ref IngressQueue
+  FilterFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+      Path: "/"
+      Policies:
+        - PolicyName: SendSQSMessage
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 'sqs:SendMessage'
+                Resource: !GetAtt IngressQueue.Arn
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole
+
+  IngressQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      DelaySeconds: 300
+      MessageRetentionPeriod: 432000
+      ReceiveMessageWaitTimeSeconds: 20
+      VisibilityTimeout: 1200
 
   TestLambda:
     Type: AWS::Serverless::Function
@@ -88,7 +136,6 @@ Resources:
           Properties:
             Queue: !GetAtt IngressQueue.Arn
             BatchSize: !Ref BatchSize
-            MaximumBatchingWindowInSeconds: !Ref BatchWindowSeconds
             Enabled: true
       Role: !GetAtt TestLambdaRole.Arn
   TestLambdaRole:
@@ -108,6 +155,19 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole
 
+  TestLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${TestLambda}"
+      RetentionInDays: 3
+      
+  FilterFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${FilterFunction}"
+      RetentionInDays: 3
+
+      
 Outputs:
   TestBucketARN:
     Value: !Ref TestBucket
