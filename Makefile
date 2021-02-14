@@ -14,7 +14,7 @@ package:
 
 .PHONY: deploy
 deploy:
-	aws cloudformation deploy \
+	./cloudformation.py deploy \
 		--stack-name s3-record-filter \
-		--template-file .template.yaml \
-		--capabilities CAPABILITY_IAM
+		--template-path .template.yaml \
+		--params-path simple-pipeline.jsonnet

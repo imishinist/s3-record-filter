@@ -86,7 +86,7 @@ Resources:
       Role: !GetAtt FilterFunctionRole.Arn
       Environment:
         Variables:
-          
+          RECORD_AFTER: "2022-01-01T00:00:00+09:00"
           QUEUE_URL: !Ref IngressQueue
   FilterFunctionRole:
     Type: AWS::IAM::Role
