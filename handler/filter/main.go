@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
-	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -18,21 +16,6 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"golang.org/x/xerrors"
 )
-
-type Time time.Time
-
-func (t *Time) Decode(value string) error {
-	parsed, err := time.Parse(time.RFC3339, value)
-	if err != nil {
-		return fmt.Errorf("invalid format: %w:", err)
-	}
-	*t = Time(parsed)
-	return nil
-}
-
-func (t *Time) ToTime() time.Time {
-	return time.Time(*t)
-}
 
 type FilterConfig struct {
 	RecordAfter Time   `envconfig:"RECORD_AFTER"`
@@ -83,7 +66,7 @@ func handler(ctx context.Context, event events.SQSEvent) error {
 			return fmt.Errorf("unmarshal s3 event error: %w", err)
 		}
 
-		if f.RecordAfter == nil {
+		if f.RecordAfter.IsZero() {
 			fmt.Println("`RECORD_AFTER` is nil, so append all")
 			s3Records = append(s3Records, records.Records...)
 			continue
